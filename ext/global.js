@@ -410,7 +410,7 @@ let defaults = {
 	"badgecolor" : "#33aa33",
 	"markup" : true,
 	"maxmsg" : "0",
-	"fullscreenfix" : true,
+	"fullscreenfix" : false,
 	"expandstrm" : true,
 	"norefer" : true
 };

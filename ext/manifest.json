@@ -1,6 +1,8 @@
 {
+"update_url": "https://clients2.google.com/service/update2/crx",
+
 	"name": "Picarto Notifier",
-	"version": "2.3.12",
+	"version": "2.3.13",
 	"manifest_version": 2,
 	"permissions": [
 		"webRequest",
