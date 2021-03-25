@@ -111,7 +111,17 @@ async function getAvatar(name)
 		{
 			getAPI(`channel/name/${name}`, data => {
 				let avatarUrl = data.avatar;
-				if(!avatarUrl) reject();
+				if(!avatarUrl)
+				{
+					reject();
+					return;
+				}
+
+				if(avatarUrl === knownAvatars[name])
+				{
+					resolve(avatarUrl);
+					return;
+				}
 
 				knownAvatars[name] = avatarUrl;
 				storage.local.set({"AVATAR": knownAvatars}, () => {

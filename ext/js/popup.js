@@ -327,6 +327,16 @@ function updateLive(callback) {
 			livecache = items["LIVE"];
 			knownAvatars = items["AVATAR"];
 			peoplelive = false;
+
+			// console.log(livecache);
+
+			const sortedKeys = Object.keys(livecache).sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+			livecache = sortedKeys.reduce((obj, channel) => {
+				obj[channel] = livecache[channel];
+				return obj;
+			}, {});
+
+			// console.log(sortedKeys, livecache);
 			
 			// loop through cached users
 			for (u in livecache) {
