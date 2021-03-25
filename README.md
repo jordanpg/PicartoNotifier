@@ -3,7 +3,7 @@
 forked from [PicartoNotifier](https://github.com/Banderi/PicartoNotifier) to work around new picarto api changes and give me my precious notifications back
 
 ## a summary of what's different here:
-* OAuth required now to make use of the [ptvapi.picarto.tv](https://ptvapi.picarto.tv/) API; whatever the /process/... API was, i can't find any trace of it
+* OAuth required now to make use of the user-specific features of the [ptvapi.picarto.tv](https://ptvapi.picarto.tv/) API; whatever the /process/... API was, i can't find any trace of it
   * many API calls are changed, OAuth server has changed
   * couldn't get notification API to work without replying with "ERR syntax error"
   * no way for me to test out multistream stuff so i didn't make any changes there
