@@ -15,16 +15,18 @@ var invitecount = 0;
 var ownname = "";
 var exploreData = {};
 var notifications = 0;
+var knownAvatars = {};
 
 var notloggedinrecall = false;
 
 var token = "";
 
-var picartoClientID = "Pb5mFzEq7MMetQ8p"
-var redirectURI = "https://banderi.github.io/PicartoNotifier/redirect.html"
-var crxID = "fifjhakdmflgahkghkijipchfomdajfn"
-var picartoURL = "https://oauth.picarto.tv/authorize?redirect_uri=" + redirectURI + "&response_type=token&scope=readpub readpriv write&state=OAuth2Implicit&client_id=" + picartoClientID
+var picartoClientID = "6deb707e-1253-4149-be70-73809ef68264"
+var redirectURI = "https://jordanpg.github.io/picarto/redirect.html"
+var crxID = "jehmkkfdlegnihglnkcjhanlnjgefjfo"
+var picartoURL = "https://ptvoauth.picarto.tv/oauth/authorize?redirect_uri=" + redirectURI + "&response_type=token&scope=readpub readpriv write&state=OAuth2Implicit&client_id=" + picartoClientID
 var tokenRegex = RegExp("[&#]access_token=(.+?)(?:&|$)")
+const apiUrl = 'https://ptvapi.picarto.tv/api/v1/';
 
 function IsNullOrWhitespace( input ) {
   return !input || !input.trim();
@@ -57,7 +59,7 @@ function OAuthConnect(interactive = false, callback) {
 async function getAPI(url, callback) {
 	try {
 		await $.ajax({
-			url: "https://api.picarto.tv/v1/" + url,
+			url: apiUrl + url,
 			method: "GET",
 			dataType: "json",
 			crossDomain: true,
@@ -82,7 +84,7 @@ async function getAPI(url, callback) {
 
 async function postAPI(url, callback) {
 	await $.ajax({
-		url: "https://api.picarto.tv/v1/" + url,
+		url: apiUrl + url,
 		method: "POST",
 		crossDomain: true,
 		contentType: "application/json; charset=utf-8",
@@ -98,6 +100,30 @@ async function postAPI(url, callback) {
 		error: function (jqXHR, textStatus, errorThrown) {
 			console.log(textStatus);
 			console.log(errorThrown);
+		}
+	});
+}
+
+async function getAvatar(name)
+{
+	return new Promise((resolve, reject) => {
+		try
+		{
+			getAPI(`channel/name/${name}`, data => {
+				let avatarUrl = data.avatar;
+				if(!avatarUrl) reject();
+
+				knownAvatars[name] = avatarUrl;
+				storage.local.set({"AVATAR": knownAvatars}, () => {
+					if(isDevMode()) console.log(`Avatar for ${name}: ${avatarUrl}`);
+
+					resolve(avatarUrl);
+				});
+			});
+		}
+		catch
+		{
+			reject();
 		}
 	});
 }
@@ -132,16 +158,18 @@ function loggedintest() {
 function notify(name, type) {
 	
 	if (type == "live") {
-		if (settings["notifications"] == true) {										
-			browser.notifications.create(name, {
-				type: "basic",
-				iconUrl: "https://picarto.tv/user_data/usrimg/" + name.toLowerCase() + "/dsdefault.jpg",
-				title: "Currently streaming on Picarto:",
-				message: name
-			}, function() {});
-			if (settings["alert"] == true) {
-				ding.play();
-			}
+		if (settings["notifications"] == true) {	
+			getAPI(`channel/name/${name}`, data => {
+				browser.notifications.create(name, {
+					type: "basic",
+					iconUrl: data.avatar,
+					title: "Currently streaming on Picarto:",
+					message: name
+				}, function() {});
+				if (settings["alert"] == true) {
+					ding.play();
+				}
+			});								
 		}
 	}
 }
@@ -152,7 +180,7 @@ function updateLive(callback) {
 	let cleanData = {};
 	
 	// fetch from storage and update cache
-	storage.local.get("LIVE", function(items) {
+	storage.local.get("LIVE", async function(items) {
 		
 		let livecache = items["LIVE"];
 	
@@ -168,7 +196,7 @@ function updateLive(callback) {
 			for (i in exploreData) {
 				
 				// got a match! cache will be updated and name will be remembered
-				if (exploreData[i].channel_name && name === exploreData[i].channel_name) {
+				if (exploreData[i].name && name === exploreData[i].name) {
 					
 					exploreData[i]["old"] = true;
 					user["live"] = true;
@@ -191,7 +219,7 @@ function updateLive(callback) {
 		// add the remaining users and dispatch notifications
 		for (i in exploreData) {
 			
-			let name = exploreData[i].channel_name;
+			let name = exploreData[i].name;
 			let user = exploreData[i];
 			
 			cleanData[name] = user;
@@ -202,6 +230,7 @@ function updateLive(callback) {
 					console.log(name + " just started streaming!");
 				}
 				
+				getAvatar(name);
 				// dispatch live notification (or not)
 				notify(name, "live");
 			}
@@ -245,6 +274,9 @@ function updateAPI(callback) {
 							notifications = 0;
 						
 						storage.local.set({"API_NOTIFICATIONS" : c});
+
+						for(notif of c)
+							getAvatar(notif.channel);
 						
 						// automatically remove notifications if setting is enabled
 						if (settings["picartobar"] == true && c && c[0]) {
@@ -369,8 +401,17 @@ function updateMOTD() {
 
 // main update function
 function update() {
-	$.post("https://picarto.tv/process/explore", {follows: true}).done(function(data) {
-		exploreData = JSON.parse(data);
+	if(isDevMode())
+		console.log("Updating...");
+
+	getAPI("online?adult=true&gaming=true", data => {
+	// $.get("https://api.picarto.tv/v1/online", {follows: true, first: 1000}).done(function(exploreData) {
+		// if(isDevMode()) console.log(data);
+
+		exploreData = data.filter(channel => channel['following']);
+
+		if(isDevMode()) console.log(exploreData);
+		// exploreData = JSON.parse(data);
 		
 		// check user session
 		if (exploreData[0] && exploreData[0].error == "notLoggedin") {
@@ -432,6 +473,11 @@ function getSettings() {
 			// start the update!
 			update();
 			updater = setInterval(update, 5000);
+		});
+
+		storage.local.get("AVATAR", data => {
+			if(data["AVATAR"])
+				knownAvatars = data["AVATAR"];
 		});
 	});
 }

@@ -56,6 +56,8 @@ notificationMsgs[72] = "Please add correct URL. (eg. http://google.com )";
 notificationMsgs[73] = "Please add correct title. (HTML is not allowd in title)";
 notificationMsgs[74] = "You can not start multistream sessions with a free account.";
 
+const apiUrl = 'https://ptvapi.picarto.tv/api/v1/';
+
 // display debug messages, errors and info
 function displayNotificationMsg(id) {
 	if (isDevMode()) {
@@ -102,12 +104,13 @@ var multicache = {};
 var usercache = {};
 var notifcache = {};
 var recordcache = {};
+var knownAvatars = {};
 
 var ownname = "";
 
 async function postAPI(url, callback) {
 	await $.ajax({
-		url: "https://api.picarto.tv/v1/" + url,
+		url: apiUrl + url,
 		method: "POST",
 		crossDomain: true,
 		contentType: "application/json; charset=utf-8",
@@ -127,139 +130,193 @@ async function postAPI(url, callback) {
 	});
 }
 
-function appendLiveLink(name) {
-	$('#con_live').append(
-		$('<div/>', {'class': 'conn_streamer', 'id': name}).append(
-			$('<div/>', {'class': 'conn_streamer_head'}).append(
-				$('<div/>', {'class': 'col'}).append(
-					$('<img/>', {'class': 'conn_avatar'}).attr("src", "https://picarto.tv/user_data/usrimg/" + name.toLowerCase() + "/dsdefault.jpg")
-				)
-				.append(
-					$('<span/>', {'class': 'conn_user', text: name})
-				)
-				.append(
-					$('<span/>', {'class': 'ms_button ms_inv', 'title': 'Invite to multistream', 'value': name}).append(
-						$('<i/>', {'class': 'icon'}).html('&#xe814;')
-					)
-				)
-			)
-		)
-	);
-	
-	if (!token)
-		$(".ms_button").hide();
-};
+async function postAPIX(url, data, callback) {
+	await $.ajax({
+		url: apiUrl + url,
+		method: "POST",
+		crossDomain: true,
+		cache: false,
+		data: data,
+		beforeSend: function (xhr) {
+			xhr.setRequestHeader("Authorization", "Bearer " + token);
+		},
+		success: function (data) {
+			/* console.log("woo!"); */
+			
+			typeof callback === 'function' && callback(data);
+		},
+		error: function (jqXHR, textStatus, errorThrown) {
+			console.log(textStatus);
+			console.log(errorThrown);
+		}
+	});
+}
 
-function appendMultiCard(name, id, type) {
-	$('#ms_invites').append(
-		$('<div/>', {'class': 'conn_invite'}).append(
-			$('<div/>', {'class': 'conn_streamer_head'}).append(
-				$('<div/>', {'class': 'col live'}).append(
-					$('<img/>', {'class': 'conn_avatar'}).attr("src", "https://picarto.tv/user_data/usrimg/" + name.toLowerCase() + "/dsdefault.jpg")
-				)
-			)
-		)
-	);
-	
-	let card = $(".col.live").last();
-	
-	// incoming invites
-	if (type == "incoming") {
-		card.append(
-			$('<span/>', {'class': 'conn_user', text: "Invite from " + name})
-		)
-		.append(
-			$('<span/>', {'class': 'ms_button ms_acc', 'title': 'Accept invite', 'value': id}).append(
-				$('<i/>', {'class': 'icon'}).html('&#xe812;')
-			)
-		)
-		.append(
-			$('<span/>', {'class': 'ms_button ms_dec', 'title': 'Decline invite', 'value': id}).append(
-				$('<i/>', {'class': 'icon'}).html('&#xe813;')
-			)
-		);
-	} // outgoing invites
-	else if (type == "outgoing") {
-		card.append(
-			$('<span/>', {'class': 'conn_user', text: "Awaiting..."})
-		)
-		.append(
-			$('<span/>', {'class': 'ms_button ms_rev', 'title': 'Cancel invite', 'value': id}).append(
-				$('<i/>', {'class': 'icon'}).html('&#xe813;')
-			)
-		);
-	} // guests you are hosting
-	else if (type == "guest") {
-		card.append(
-			$('<span/>', {'class': 'conn_user', text: "Accepted!"})
-		)
-		.append(
-			$('<span/>', {'class': 'ms_button ms_rev', 'title': 'Revoke invite', 'value': id}).append(
-				$('<i/>', {'class': 'icon'}).html('&#xe813;')
-			)
-		);
-	} // attending someone else's stream
-	else if (type == "host") {
-		card.append(
-			$('<span/>', {'class': 'conn_user', text: name})
-		)
-		.append(
-			$('<span/>', {'class': 'ms_button ms_dec', 'title': 'Leave session', 'value': id}).append(
-				$('<i/>', {'class': 'icon'}).html('&#xe813;')
-			)
-		);
+async function getAPI(url, callback) {
+	try {
+		await $.ajax({
+			url: apiUrl + url,
+			method: "GET",
+			dataType: "json",
+			crossDomain: true,
+			contentType: "application/json; charset=utf-8",
+			cache: false,
+			beforeSend: function (xhr) {
+				xhr.setRequestHeader("Authorization", "Bearer " + token);
+			},
+			success: function (data) {
+				/* console.log("woo!"); */
+				
+				typeof callback === 'function' && callback(data);
+			},
+			error: function (jqXHR, textStatus, errorThrown) {
+				console.log(jqXHR.responseText);
+			}
+		});
+	} catch (e) {
+		//
 	}
 }
 
-function appendNotificationCard(name, uuid, timestamp, type) {
-	$('#con_notifications').prepend(
-		$('<div/>', {'class': 'conn_notification'}).append(
-			$('<div/>', {'class': 'conn_streamer_head'}).append(
-				$('<div/>', {'class': 'col notif'}).append(
-					$('<img/>', {'class': 'conn_avatar'}).attr("src", "https://picarto.tv/user_data/usrimg/" + name.toLowerCase() + "/dsdefault.jpg")
+async function appendLiveLink(name, avatarUrl) {
+	// getAPI(`channel/name/${name}`, (data) => {
+		$('#con_live').append(
+			$('<div/>', {'class': 'conn_streamer', 'id': name}).append(
+				$('<div/>', {'class': 'conn_streamer_head'}).append(
+					$('<div/>', {'class': 'col'}).append(
+						$('<img/>', {'class': 'conn_avatar'}).attr("src", avatarUrl)
+					)
+					.append(
+						$('<span/>', {'class': 'conn_user', text: name})
+					)
+					.append(
+						$('<span/>', {'class': 'ms_button ms_inv', 'title': 'Invite to multistream', 'value': name}).append(
+							$('<i/>', {'class': 'icon'}).html('&#xe814;')
+						)
+					)
 				)
 			)
+		);
+	// });
+	
+	if (!token)
+		$(".ms_button").hide();
+}
+
+function appendMultiCard(name, id, type, avatarUrl) {
+	// getAPI(`channel/name/${name}`, data => {
+		$('#ms_invites').append(
+			$('<div/>', {'class': 'conn_invite'}).append(
+				$('<div/>', {'class': 'conn_streamer_head'}).append(
+					$('<div/>', {'class': 'col live'}).append(
+						$('<img/>', {'class': 'conn_avatar'}).attr("src", avatarUrl)
+					)
+				)
+			)
+		);
+
+		let card = $(".col.live").last();
+	
+		// incoming invites
+		if (type == "incoming") {
+			card.append(
+				$('<span/>', {'class': 'conn_user', text: "Invite from " + name})
+			)
+			.append(
+				$('<span/>', {'class': 'ms_button ms_acc', 'title': 'Accept invite', 'value': id}).append(
+					$('<i/>', {'class': 'icon'}).html('&#xe812;')
+				)
+			)
+			.append(
+				$('<span/>', {'class': 'ms_button ms_dec', 'title': 'Decline invite', 'value': id}).append(
+					$('<i/>', {'class': 'icon'}).html('&#xe813;')
+				)
+			);
+		} // outgoing invites
+		else if (type == "outgoing") {
+			card.append(
+				$('<span/>', {'class': 'conn_user', text: "Awaiting..."})
+			)
+			.append(
+				$('<span/>', {'class': 'ms_button ms_rev', 'title': 'Cancel invite', 'value': id}).append(
+					$('<i/>', {'class': 'icon'}).html('&#xe813;')
+				)
+			);
+		} // guests you are hosting
+		else if (type == "guest") {
+			card.append(
+				$('<span/>', {'class': 'conn_user', text: "Accepted!"})
+			)
+			.append(
+				$('<span/>', {'class': 'ms_button ms_rev', 'title': 'Revoke invite', 'value': id}).append(
+					$('<i/>', {'class': 'icon'}).html('&#xe813;')
+				)
+			);
+		} // attending someone else's stream
+		else if (type == "host") {
+			card.append(
+				$('<span/>', {'class': 'conn_user', text: name})
+			)
+			.append(
+				$('<span/>', {'class': 'ms_button ms_dec', 'title': 'Leave session', 'value': id}).append(
+					$('<i/>', {'class': 'icon'}).html('&#xe813;')
+				)
+			);
+		}
+	// });
+}
+
+function appendNotificationCard(name, uuid, timestamp, type, body, avatarUrl) {
+	// getAPI(`channel/name/${name}`, data => {
+		$('#con_notifications').prepend(
+			$('<div/>', {'class': 'conn_notification'}).append(
+				$('<div/>', {'class': 'conn_streamer_head'}).append(
+					$('<div/>', {'class': 'col notif'}).append(
+						$('<img/>', {'class': 'conn_avatar'}).attr("src", avatarUrl)
+					)
+				)
+			)
+		);
+
+		let card = $(".col.notif").first();
+		let msg = body.replace(name, '');
+		
+		// live notification
+		// if (type == "L")
+		// 	msg = " is now live";
+		// else if (type == "multiInvite")
+		// 	msg = " invited you";
+		// else if (type == "multiAccept")
+		// 	msg = " accepted your invite";
+		// else if (type == "multiLeave")
+		// 	msg = " left your multistream";
+		// else if (type == "multiRemove")
+		// 	msg = " has revoked your invite";
+		// else if (type == "recordingCreate")
+		// 	msg = " created a new recording";
+		// else if (type == "follow")
+		// 	msg = " followed you";
+		
+		let d = new Date(timestamp * 1000);
+		
+		card.append(
+			$('<span/>', {'class': 'conn_user notif', text: msg}).prepend(
+				$('<span/>', {'class': 'conn_user notif name', text: name})
+			)
 		)
-	);
-	
-	let card = $(".col.notif").first();
-	let msg = "";
-	
-	// live notification
-	if (type == "live")
-		msg = " is now live";
-	else if (type == "multiInvite")
-		msg = " invited you";
-	else if (type == "multiAccept")
-		msg = " accepted your invite";
-	else if (type == "multiLeave")
-		msg = " left your multistream";
-	else if (type == "multiRemove")
-		msg = " has revoked your invite";
-	else if (type == "recordingCreate")
-		msg = " created a new recording";
-	else if (type == "follow")
-		msg = " followed you";
-	
-	let d = new Date(timestamp);
-	
-	card.append(
-		$('<span/>', {'class': 'conn_user notif', text: msg}).prepend(
-			$('<span/>', {'class': 'conn_user notif name', text: name})
+		.append(
+			$('<span/>', {'class': 'conn_user timestamp', text: d.toLocaleString()})
 		)
-	)
-	.append(
-		$('<span/>', {'class': 'conn_user timestamp', text: d.toLocaleString()})
-	)
-	.append(
-		$('<span/>', {'class': 'ms_button ms_read', 'title': 'Mark as read', 'value': uuid}).append(
-			$('<i/>', {'class': 'icon'}).html('&#xe813;')
-		)
-	);
+		.append(
+			$('<span/>', {'class': 'ms_button ms_read', 'title': 'Mark as read', 'value': uuid}).append(
+				$('<i/>', {'class': 'icon'}).html('&#xe813;')
+			)
+		);
+	// });
 }
 
 function updateLive(callback) {
-	storage.local.get("LIVE", function(items) {
+	storage.local.get(["LIVE", "AVATAR"], function(items) {
 		
 		// cache didn't change, so don't kill the DOM
 		if (JSON.stringify(livecache) === JSON.stringify(items["LIVE"])) {
@@ -268,6 +325,7 @@ function updateLive(callback) {
 			$('#con_live').empty();
 			
 			livecache = items["LIVE"];
+			knownAvatars = items["AVATAR"];
 			peoplelive = false;
 			
 			// loop through cached users
@@ -286,7 +344,7 @@ function updateLive(callback) {
 				
 				
 				// add link to the window				
-				appendLiveLink(name);
+				appendLiveLink(name, knownAvatars[name]);
 				
 				peoplelive = true;
 			}
@@ -315,7 +373,7 @@ function updateLive(callback) {
 }
 
 function updateMulti(callback) {
-	storage.local.get("API_MULTISTREAM", function(items) {
+	storage.local.get(["API_MULTISTREAM", "AVATAR"], function(items) {
 		
 		// cache didn't change, so don't kill the DOM
 		if (!items["API_MULTISTREAM"] || items["API_MULTISTREAM"] == "" || JSON.stringify(multicache) === JSON.stringify(items["API_MULTISTREAM"])) {
@@ -326,6 +384,7 @@ function updateMulti(callback) {
 		$('#ms_invites').empty();
 		
 		multicache = items["API_MULTISTREAM"];
+		knownAvatars = items["AVATAR"];
 		
 		let m = multicache;
 		if (m["incoming"][0] || m["outgoing"][0] || m["session"]["guests"][0]) {
@@ -336,26 +395,26 @@ function updateMulti(callback) {
 			for (i in m["incoming"]) {
 				let o = m["incoming"][i];
 				let name = o["name"];
-				appendMultiCard(name, o["user_id"], "incoming");
+				appendMultiCard(name, o["user_id"], "incoming", knownAvatars[name]);
 				newnames.push(name);
 			}
 			for (i in m["outgoing"]) {
 				let o = m["outgoing"][i];
 				let name = o["name"];
-				appendMultiCard(name, o["user_id"], "outgoing");
+				appendMultiCard(name, o["user_id"], "outgoing", knownAvatars[name]);
 				newnames.push(name);
 			}
 			if (m["session"]["host"]["name"] == ownname)
 				for (i in m["session"]["guests"]) {
 					let o = m["session"]["guests"][i];
 					let name = o["name"];
-					appendMultiCard(name, o["user_id"], "guest");
+					appendMultiCard(name, o["user_id"], "guest", knownAvatars[name]);
 					newnames.push(name);
 				}
 			if (m["session"]["host"] && m["session"]["host"]["name"] != ownname && m["session"]["active"] == true) {
 				let o = m["session"]["host"];
 				let name = o["name"];
-				appendMultiCard(name, o["user_id"], "host");
+				appendMultiCard(name, o["user_id"], "host", knownAvatars[name]);
 				newnames.push(name);
 			}
 			
@@ -378,9 +437,10 @@ function updateMulti(callback) {
 function updateNotifications() {
 	
 	if (settings["picartobar"] == true && notifcache[0]) {
-		for (n in notifcache) {
-			postAPI("user/notifications/" + notifcache[n]["uuid"] + "/delete");
-		}
+		// for (n in notifcache) {
+		// 	postAPI("user/notifications/" + notifcache[n]["uuid"] + "/read");
+		// }
+		postAPI('user/notifications/all/read');
 		notifcache = {};
 		storage.local.set({"API_NOTIFICATIONS" : notifcache});
 		$('#con_notifications').empty();
@@ -388,7 +448,7 @@ function updateNotifications() {
 		browser.storage.local.set({"CACHESTAMP" : cachestamp});
 	}
 	
-	storage.local.get("API_NOTIFICATIONS", function(items) {
+	storage.local.get(["API_NOTIFICATIONS", "AVATAR"], function(items) {
 		
 		// cache didn't change, so don't kill the DOM
 		if (!items["API_NOTIFICATIONS"] || JSON.stringify(notifcache) === JSON.stringify(items["API_NOTIFICATIONS"])) {
@@ -398,6 +458,7 @@ function updateNotifications() {
 		$('#con_notifications').empty();
 		
 		notifcache = items["API_NOTIFICATIONS"];
+		knownAvatars = items["AVATAR"];
 		
 		for (i in notifcache) {
 			if (notifcache[i]["unread"] == true || true) {
@@ -405,7 +466,8 @@ function updateNotifications() {
 				let uuid = notifcache[i]["uuid"];
 				let timestamp = notifcache[i]["timestamp"];
 				let type = notifcache[i]["type"];
-				appendNotificationCard(name, uuid, timestamp, type);
+				let body = notifcache[i]["body"];
+				appendNotificationCard(name, uuid, timestamp, type, body, knownAvatars[name]);
 			}
 		}
 		
@@ -414,7 +476,7 @@ function updateNotifications() {
 			let inv = $(this);
 			let id = $(this).attr('value');
 			$(this).off().on('click', function() {
-				postAPI("user/notifications/" + id + "/delete", function(data) {
+				postAPI("user/notifications/" + id + "/read", function(data) {
 					inv.parent().parent().parent().remove();
 					
 					var obj = notifcache.find(function (obj) { return obj.uuid === id; });
@@ -470,68 +532,48 @@ function updateRecordings() {
 }
 
 function setGameMode(value) {
-	$.post("https://picarto.tv/process/dashboard", {setGameMode: value}, function(data) {
-		if (data == "gameModeOk") {
-			let dashboard = usercache["channel_details"];
-			
-			if (value == 1) {
-				dashboard["gaming"] = true;
-			} else {
-				dashboard["gaming"] = false;
-			}
-			usercache["channel_details"] = dashboard;
-			browser.storage.local.set({"API_USER" : usercache}, function() {
-				updateDashboard(true);
-			});
-		} else if (data == "gameModeFail") {
-			displayErrorMsg(102)
-		} else if (data == "notAllowed") {
-			displayNotificationMsg(5)
+	postAPI(`user/streamflags/gaming?enable=${value}`, data => {
+		let dashboard = usercache["channel_details"];
+		
+		if (value == 1) {
+			dashboard["gaming"] = true;
+		} else {
+			dashboard["gaming"] = false;
 		}
+		usercache["channel_details"] = dashboard;
+		browser.storage.local.set({"API_USER" : usercache}, function() {
+			updateDashboard(true);
+		});
 	})
 }
 function setNsfw(value) {
-	$.post("https://picarto.tv/process/dashboard", {setNsfw: value}, function(data) {
-		if (data == "nsfwOk") {
-			let dashboard = usercache["channel_details"];
-			
-			if (value == 1) {
-				dashboard["adult"] = true;
-			} else {
-				dashboard["adult"] = false;
-			}
-			usercache["channel_details"] = dashboard;
-			browser.storage.local.set({"API_USER" : usercache}, function() {
-				updateDashboard(true);
-			});
-		} else if (data == "nsfwFail") {
-			displayErrorMsg(103)
-		} else if (data == "notAllowed") {
-			displayNotificationMsg(5)
-		} else if (data == "nsfwCategorySet") {
-			displayNotificationMsg(36)
+	postAPI(`user/streamflags/adult?enable=${value}`, data => {
+		let dashboard = usercache["channel_details"];
+		
+		if (value == 1) {
+			dashboard["adult"] = true;
+		} else {
+			dashboard["adult"] = false;
 		}
+		usercache["channel_details"] = dashboard;
+		browser.storage.local.set({"API_USER" : usercache}, function() {
+			updateDashboard(true);
+		});
 	})
 }
 function setCommissionMode(value) {
-	$.post("https://picarto.tv/process/dashboard", {setCommission: value}, function(data) {
-		if (data == "commissionModeOk") {
-			let dashboard = usercache["channel_details"];
-			
-			if (value == 1) {
-				dashboard["commissions"] = true;
-			} else {
-				dashboard["commissions"] = false;
-			}
-			usercache["channel_details"] = dashboard;
-			browser.storage.local.set({"API_USER" : usercache}, function() {
-				updateDashboard(true);
-			});
-		} else if (data == "commissionModeFail") {
-			displayErrorMsg(104)
-		} else if (data == "notAllowed") {
-			displayNotificationMsg(5)
+	postAPI(`user/streamflags/commission?enable=${value}`, data => {
+		let dashboard = usercache["channel_details"];
+		
+		if (value == 1) {
+			dashboard["commissions"] = true;
+		} else {
+			dashboard["commissions"] = false;
 		}
+		usercache["channel_details"] = dashboard;
+		browser.storage.local.set({"API_USER" : usercache}, function() {
+			updateDashboard(true);
+		});
 	})
 }
 function updateDashboard(c = false) {
@@ -1012,9 +1054,10 @@ $(document).ready(function() {
 	// register notification purge button
 	$("#removeall").on("click", function() {
 		if (notifcache[0]) {
-			for (n in notifcache) {
-				postAPI("user/notifications/" + notifcache[n]["uuid"] + "/delete");
-			}
+			// for (n in notifcache) {
+			// 	postAPI("user/notifications/" + notifcache[n]["uuid"] + "/delete");
+			// }
+			postAPI("user/notifications/all/read");
 			notifcache = {};
 			storage.local.set({"API_NOTIFICATIONS" : notifcache});
 			$('#con_notifications').empty();
