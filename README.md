@@ -2,7 +2,8 @@
 
 forked from [PicartoNotifier](https://github.com/Banderi/PicartoNotifier) to work around new picarto api changes and give me my precious notifications back
 
-highly likely this immediately breaks within a few days i guess or old functionality returns
+~~highly likely this immediately breaks within a few days i guess or old functionality returns~~
+**it did**
 
 ## a summary of what's different here:
 * OAuth required now to make use of the user-specific features of the [ptvapi.picarto.tv](https://ptvapi.picarto.tv/) API; whatever the /process/... API was, i can't find any trace of it
