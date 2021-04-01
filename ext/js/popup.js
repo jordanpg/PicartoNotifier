@@ -1123,6 +1123,12 @@ $(document).ready(function() {
 		$(".dashboard-enabled").hide();
 		$(".dashboard-disabled").show();
 	});
+
+	$(".refreshButton").on("click", function() {
+		browser.runtime.sendMessage({
+			"message": "updateAll"
+		});
+	});
 	
 	// get app version
 	var manifestData = browser.runtime.getManifest();

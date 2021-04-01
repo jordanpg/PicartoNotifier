@@ -2,6 +2,7 @@ if (chrome) {
 	storage = chrome.storage;
 	tabs = chrome.tabs;
 	notifications = chrome.notifications;
+	cookies = chrome.cookies;
 	browser = chrome;
 }
 function isDevMode() {
@@ -20,16 +21,30 @@ var knownAvatars = {};
 var notloggedinrecall = false;
 
 var token = "";
+var cookieToken = "";
 
 var picartoClientID = "6deb707e-1253-4149-be70-73809ef68264"
 var redirectURI = "https://jordanpg.github.io/picarto/redirect.html"
 var crxID = "jehmkkfdlegnihglnkcjhanlnjgefjfo"
-var picartoURL = "https://ptvoauth.picarto.tv/oauth/authorize?redirect_uri=" + redirectURI + "&response_type=token&scope=readpub readpriv write&state=OAuth2Implicit&client_id=" + picartoClientID
+var picartoURL = "https://oauth.picarto.tv/authorize?redirect_uri=" + redirectURI + "&response_type=token&scope=readpub readpriv write&state=OAuth2Implicit&client_id=" + picartoClientID
 var tokenRegex = RegExp("[&#]access_token=(.+?)(?:&|$)")
-const apiUrl = 'https://ptvapi.picarto.tv/api/v1/';
+const apiUrl = 'https://api.picarto.tv/api/v1/';
+// const apiUrl = 'https://api.picarto.tv/v1/'
 
 function IsNullOrWhitespace( input ) {
   return !input || !input.trim();
+}
+
+function fetchCookieToken()
+{
+	chrome.cookies.get({
+		url: "http://picarto.tv",
+		name: "ptv_auth"
+	}, data => {
+		cookie = JSON.parse(data.value)
+		cookieToken = cookie["access_token"];
+		console.log(cookie);
+	})
 }
 
 function OAuthConnect(interactive = false, callback) {
@@ -64,7 +79,7 @@ async function getAPI(url, callback) {
 			dataType: "json",
 			crossDomain: true,
 			contentType: "application/json; charset=utf-8",
-			cache: false,
+			cache: true,
 			beforeSend: function (xhr) {
 				xhr.setRequestHeader("Authorization", "Bearer " + token);
 			},
@@ -88,7 +103,7 @@ async function postAPI(url, callback) {
 		method: "POST",
 		crossDomain: true,
 		contentType: "application/json; charset=utf-8",
-		cache: false,
+		cache: true,
 		beforeSend: function (xhr) {
 			xhr.setRequestHeader("Authorization", "Bearer " + token);
 		},
@@ -420,7 +435,7 @@ function update() {
 
 		exploreData = data.filter(channel => channel['following']);
 
-		if(isDevMode()) console.log(exploreData);
+		if(isDevMode()) console.log(data, exploreData);
 		// exploreData = JSON.parse(data);
 		
 		// check user session
@@ -482,7 +497,7 @@ function getSettings() {
 			
 			// start the update!
 			update();
-			updater = setInterval(update, 5000);
+			updater = setInterval(update, 300000);
 		});
 
 		storage.local.get("AVATAR", data => {
