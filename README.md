@@ -2,6 +2,8 @@
 
 forked from [PicartoNotifier](https://github.com/Banderi/PicartoNotifier) to work around new picarto api changes and give me my precious notifications back
 
+## upstream repo has been updated, use that instead if you randomly find this
+
 ~~highly likely this immediately breaks within a few days i guess or old functionality returns~~
 **it did**
 
